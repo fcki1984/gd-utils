@@ -547,17 +547,20 @@ async function create_folders ({ source, old_mapping, folders, root, task_id, se
 
   while (same_levels.length) {
     await Promise.all(same_levels.map(async v => {
-      const { name, id, parent } = v
-      const target = mapping[parent] || root
-      const new_folder = await limit(() => create_folder(name, target, service_account))
-      count++
-      mapping[id] = new_folder.id
-      const mapping_record = id + ' ' + new_folder.id + '\n'
-      db.prepare('update task set status=?, mapping = mapping || ? where id=?').run('copying', mapping_record, task_id)
+      try {
+        const { name, id, parent } = v
+        const target = mapping[parent] || root
+        const new_folder = await limit(() => create_folder(name, target, service_account))
+        count++
+        mapping[id] = new_folder.id
+        const mapping_record = id + ' ' + new_folder.id + '\n'
+        db.prepare('update task set status=?, mapping = mapping || ? where id=?').run('copying', mapping_record, task_id)
+      } catch (e) {
+        console.error('创建目录出错:', v, e)
+      }
     }))
     folders = folders.filter(v => !mapping[v.id])
     same_levels = [].concat(...same_levels.map(v => folders.filter(vv => vv.parent === v.id)))
-    if (!limit.activeCount && !limit.pendingCount) break
   }
 
   clearInterval(loop)
